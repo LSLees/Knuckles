@@ -1,37 +1,69 @@
 [BITS 16]
 [ORG 0x7c00]
 
+CODE_OFFSET equ 0x8
+DATA_OFFSET equ 0x10
 
 start:
-   cli ; clear interrupts
+   cli
    mov ax, 0x00
-   mov ds, ax
-   mov es, ax
-   mov es, ax
-   mov ss, ax
+   mov ds, ax ; data segment
+   mov es, ax ; extra segment
+   mov ss, ax ; stack segment
    mov sp, 0x7c00
    sti ; enable interrupts
-   mov si, msg
+
+load_PM:
+	cli
+	lgdt [gdt_descriptor]
+	mov eax, cr0
+	or al, 1
+	mov cr0, eax
+	jmp CODE_OFFSET:PModeMain
 
 
-print:
-   lodsb ; loads byte at ds:su to al reg and increments si
-   cmp al, 0
-   je done
-   mov ah, 0x0e
-   int 0x10
-   jmp print
+; global descriptor table
 
+gdt_start:
+   dd 0x0
+   dd 0x0
 
-done:
-   cli
-   hlt
+   ; code segment
+   dw 0xffff ; limit
+   dw 0x0000 ; base
+   db 0x00 ; base
+	db 10011010b ; access
+	db 11001111b ; flags
+	db 0x00 ; base
 
+	; data segment
+   dw 0xffff ; limit
+   dw 0x0000 ; base
+   db 0x00 ; base
+	db 10010010b ; access
+	db 11001111b ; flags
+	db 0x00 ; base
 
-msg: db 'hello world!' , 0
+gdt_end:
 
+gdt_descriptor:
+	dw gdt_end - gdt_start - 1
+	dd gdt_start
 
-times 510 - ($ - $$) db 0
+PModeMain:
+	mov ax, DATA_OFFSET
+	mov ds, ax
+	mov es, ax
+	mov fs, ax
+	mov ss, ax
+	mov gs, ax
+	mov ebp, 0x9c00
+	mov esp, ebp
 
+	in al, 0x92
+	or al, 2
+	out 0x92, al
 
-dw 0xaa55
+	jmp $
+
+times 510 - ($ - $$) db 0 ; fill upto 0x510
