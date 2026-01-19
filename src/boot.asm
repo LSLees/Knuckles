@@ -32,7 +32,7 @@ enable_prot:
     mov eax, cr0
     or eax, 1
     mov cr0, eax
-    jmp 0x08:init_pm
+    jmp 0x08:entry
 
 gdt0:
     dd 0x0
@@ -52,7 +52,8 @@ gdt0:
 gdt1:
 
 [BITS 32]
-init_pm:
+
+entry:
     mov ax, 0x10
     mov ds, ax
     mov ss, ax
@@ -62,39 +63,77 @@ init_pm:
 
     mov ebp, 0x90000
     mov esp, ebp
-
     mov eax, 0
-    jmp BEGIN_PM
 
-BEGIN_PM:
-    mov ebx, 0xb8000
-    mov byte [ebx+eax], ' '
-    add eax, 1
-    mov byte [ebx+eax], 0x0f
-    add eax, 1
-    cmp eax, 10000
-    je knuckles
-    jmp BEGIN_PM
-
-knuckles:
-    mov ebx, 0xb8526
-    mov byte [ebx], 'K'
-    mov byte [ebx+1], 0x0f
-    mov byte [ebx+2], 'n'
-    mov byte [ebx+3], 0x0f
-    mov byte [ebx+4], 'u'
-    mov byte [ebx+5], 0x0f
-    mov byte [ebx+6], 'c'
-    mov byte [ebx+7], 0x0f
-    mov byte [ebx+8], 'k'
-    mov byte [ebx+9], 0x0f
-    mov byte [ebx+10], 'l'
-    mov byte [ebx+11], 0x0f
-    mov byte [ebx+12], 'e'
-    mov byte [ebx+13], 0x0f
-    mov byte [ebx+14], 's'
-    mov byte [ebx+15], 0x0f
-
+    call clear_vga
+    mov ebx, msg_boot
+    mov eax, 0xb80a4
+    call print32
+    mov ebx, msg_entry
+    mov eax, 0xb81e4
+    call print32
+    mov bx, 274
+    call set_caret
+    call poll_key
+    call clear_vga
     jmp $
+
+clear_vga:
+    pusha
+    mov ax, 0x0f20
+    mov ecx, 2000
+    mov edi, 0xb8000
+    rep stosw
+    popa
+    ret
+
+print32:
+    pusha
+    mov edx, eax
+    mov ah, 0x0f
+
+.loop:
+    mov al, [ebx]
+    cmp al, 0
+    je .done
+    mov [edx], ax
+    add ebx, 1
+    add edx, 2
+    jmp .loop
+
+.done:
+    popa
+    ret
+
+poll_key:
+    in al, 0x64
+    test al, 1
+    jz poll_key
+    in al, 0x60
+    ret
+
+set_caret:
+pusha
+    mov dx, 0x3d4
+    mov al, 0x0e    
+    out dx, al
+
+    mov dx, 0x3d5
+    mov al, bh
+    out dx, al
+
+    mov dx, 0x3d4
+    mov al, 0x0f
+    out dx, al
+
+    mov dx, 0x3d5
+    mov al, bl
+    out dx, al
+
+    popa
+    ret
+
+msg_boot: db "Knuckles", 0
+msg_entry: db "Select an entry point to boot...", 0
 
 times 1024-($-$$) db 0
