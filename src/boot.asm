@@ -1,7 +1,13 @@
-[BITS 16]
-[ORG 0x7c00]
+[bits 16]
+[org 0x7c00]
+
+KERNEL_OFFSET equ 0x1000
 
 start:
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
     mov bp, 0x9000
     mov sp, bp
 
@@ -12,6 +18,15 @@ start:
     mov al, 1 ; sector count
     mov cl, 2 ; sector
     mov bx, 0x7e00
+    int 0x13
+
+    mov ah, 0x02
+    ; mov dl, 0 ; drive number
+    mov dh, 0
+    mov ch, 0
+    mov al, 10
+    mov cl, 3
+    mov bx, KERNEL_OFFSET
     int 0x13
 
     jmp enable_prot
@@ -51,7 +66,7 @@ gdt0:
     db 0x0
 gdt1:
 
-[BITS 32]
+[bits 32]
 
 entry:
     mov ax, 0x10
@@ -72,10 +87,10 @@ entry:
     mov ebx, msg_entry
     mov eax, 0xb81e4
     call print32
-    mov bx, 274
+    mov bx, 273
     call set_caret
     call poll_key
-    call clear_vga
+    jmp KERNEL_OFFSET
     jmp $
 
 clear_vga:
@@ -113,9 +128,9 @@ poll_key:
     ret
 
 set_caret:
-pusha
+    pusha
     mov dx, 0x3d4
-    mov al, 0x0e    
+    mov al, 0x0e
     out dx, al
 
     mov dx, 0x3d5
@@ -134,6 +149,5 @@ pusha
     ret
 
 msg_boot: db "Knuckles", 0
-msg_entry: db "Select an entry point to boot...", 0
-
+msg_entry: db "Press any key to load kernel...", 0
 times 1024-($-$$) db 0
