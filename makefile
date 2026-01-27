@@ -1,41 +1,51 @@
-SRC_DIR = src
-BUILD_DIR = build
-
-ASM = nasm
 CC = gcc
 LD = ld
-OBJCOPY = objcopy
-QEMU = qemu-system-i386
+NASM = nasm
 
-ASM_FLAGS = -f win32
-GCC_FLAGS = -ffreestanding -m32 -c
-LD_FLAGS = -m i386pe -Ttext 0x1000
+SRC_DIR = src
+BUILD_DIR = build
+INT_DIR = $(BUILD_DIR)/tmp
 
-all: $(BUILD_DIR)/os-image.bin
+CFLAGS = -m32 -ffreestanding -c -fno-pie -fno-stack-protector
+LDFLAGS = -m i386pe -T linker.ld
 
-run: $(BUILD_DIR)/os-image.bin
-	$(QEMU) -drive format=raw,file=$<
+BOOT_SRC = $(SRC_DIR)/boot.asm
+ENTRY_SRC = $(SRC_DIR)/entry.asm
+KERNEL_SRC = $(SRC_DIR)/kernel.c
 
-$(BUILD_DIR)/os-image.bin: $(BUILD_DIR)/boot.bin $(BUILD_DIR)/kernel.bin
+BOOT_BIN = $(INT_DIR)/boot.bin
+ENTRY_OBJ = $(INT_DIR)/entry.o
+KERNEL_OBJ = $(INT_DIR)/kernel.o
+KERNEL_ELF = $(INT_DIR)/kernel.elf
+KERNEL_BIN = $(INT_DIR)/kernel.bin
+
+OS_IMAGE = $(BUILD_DIR)/osimg.bin
+
+all: $(OS_IMAGE)
+
+$(INT_DIR):
+	mkdir -p $(INT_DIR)
+
+$(BOOT_BIN): $(BOOT_SRC) | $(INT_DIR)
+	$(NASM) -f bin $< -o $@
+
+$(ENTRY_OBJ): $(ENTRY_SRC) | $(INT_DIR)
+	$(NASM) -f elf32 $< -o $@
+
+$(KERNEL_OBJ): $(KERNEL_SRC) | $(INT_DIR)
+	$(CC) $(CFLAGS) $< -o $@
+
+$(KERNEL_ELF): $(ENTRY_OBJ) $(KERNEL_OBJ)
+	$(LD) $(LDFLAGS) -o $@ $^
+
+$(KERNEL_BIN): $(KERNEL_ELF)
+	objcopy -O binary $< $@
+
+$(OS_IMAGE): $(BOOT_BIN) $(KERNEL_BIN)
 	cat $^ > $@
 
-$(BUILD_DIR)/kernel.bin: $(BUILD_DIR)/kernel.tmp
-	$(OBJCOPY) -O binary $< $@
-
-$(BUILD_DIR)/kernel.tmp: $(BUILD_DIR)/entry.o $(BUILD_DIR)/kernel.o
-	$(LD) $(LD_FLAGS) -o $@ $^
-
-$(BUILD_DIR)/boot.bin: $(SRC_DIR)/boot.asm
-	@mkdir -p $(BUILD_DIR)
-	$(ASM) -f bin $< -o $@
-
-$(BUILD_DIR)/entry.o: $(SRC_DIR)/entry.asm
-	@mkdir -p $(BUILD_DIR)
-	$(ASM) $(ASM_FLAGS) $< -o $@
-
-$(BUILD_DIR)/kernel.o: $(SRC_DIR)/kernel.c
-	@mkdir -p $(BUILD_DIR)
-	$(CC) $(GCC_FLAGS) $< -o $@
+run: $(OS_IMAGE)
+	qemu-system-i386 -drive format=raw,file=$(OS_IMAGE)
 
 clean:
 	rm -rf $(BUILD_DIR)

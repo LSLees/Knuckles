@@ -20,12 +20,12 @@ start:
     mov bx, 0x7e00
     int 0x13
 
-    mov ah, 0x02
+    mov ah, 0x02 ; bios read sector
     ; mov dl, 0 ; drive number
-    mov dh, 0
-    mov ch, 0
-    mov al, 10
-    mov cl, 3
+    mov dh, 0 ; head
+    mov ch, 0 ; cylinder
+    mov al, 10 ; sector count
+    mov cl, 3 ; sector
     mov bx, KERNEL_OFFSET
     int 0x13
 
