@@ -1,9 +1,18 @@
+#include "core/idt.h"
+
 volatile char* vga = (volatile char*) 0xb8000;
 int cursor = 0;
 
 void outb(unsigned short port, unsigned char val)
 {
     asm volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
+}
+
+unsigned char inb(unsigned short port)
+{
+    unsigned char ret;
+    asm volatile ("inb %1, %0" : "=a"(ret) : "Nd"(port));
+    return ret;
 }
 
 void cursor_update()
@@ -70,12 +79,15 @@ void kmain()
 {
     vga_clear();
 
-    vga[0] = 'X';
-    vga[1] = 0x0f;
-    const char* string = "Loading...";
+    const char* string = "setting hardware descriptors...";
     print(string);
+
+    idt_install();
+
+    print("enabled!");
 
     while(1)
     {
+        asm volatile("hlt");
     }
 }
