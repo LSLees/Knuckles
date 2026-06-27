@@ -1,153 +1,20 @@
-[bits 16]
-[org 0x7c00]
+section .multiboot
+align 4
+    dd 0x1BADB002       ; magic
+    dd 0x00             ; flags
+    dd -(0x1BADB002)    ; checksum (magic + flags + checksum = 0)
 
-KERNEL_OFFSET equ 0x1000
+section .text
+global _start
+extern kernel_main
 
-start:
-    xor ax, ax
-    mov ds, ax
-    mov es, ax
-    mov ss, ax
-    mov bp, 0x9000
-    mov sp, bp
+_start:
+    mov esp, stack_top
+    call kernel_main
+    hlt
 
-    mov ah, 0x02 ; bios read sector
-    ; mov dl, 0 ; drive number
-    mov dh, 0 ; head
-    mov ch, 0 ; cylinder
-    mov al, 1 ; sector count
-    mov cl, 2 ; sector
-    mov bx, 0x7e00
-    int 0x13
-
-    mov ah, 0x02 ; bios read sector
-    ; mov dl, 0 ; drive number
-    mov dh, 0 ; head
-    mov ch, 0 ; cylinder
-    mov al, 10 ; sector count
-    mov cl, 3 ; sector
-    mov bx, KERNEL_OFFSET
-    int 0x13
-
-    jmp enable_prot
-
-times 510-($-$$) db 0
-dw 0xaa55
-
-; sector 2
-
-enable_prot:
-    cli
-    mov ax, gdt1 - gdt0 - 1
-    sub esp, 6
-    mov [esp], ax
-    mov eax, gdt0
-    mov [esp+2], eax
-    lgdt [esp]
-    mov eax, cr0
-    or eax, 1
-    mov cr0, eax
-    jmp 0x08:entry
-
-gdt0:
-    dd 0x0
-    dd 0x0
-    dw 0xffff
-    dw 0x0
-    db 0x0
-    db 10011010b
-    db 11001111b
-    db 0x0
-    dw 0xffff
-    dw 0x0
-    db 0x0
-    db 10010010b
-    db 11001111b
-    db 0x0
-gdt1:
-
-[bits 32]
-
-entry:
-    mov ax, 0x10
-    mov ds, ax
-    mov ss, ax
-    mov es, ax
-    mov fs, ax
-    mov gs, ax
-
-    mov ebp, 0x90000
-    mov esp, ebp
-    mov eax, 0
-
-    call clear_vga
-    mov ebx, msg_boot
-    mov eax, 0xb80a4
-    call print32
-    mov ebx, msg_entry
-    mov eax, 0xb81e4
-    call print32
-    mov bx, 273
-    call set_caret
-    call poll_key
-    jmp KERNEL_OFFSET
-    jmp $
-
-clear_vga:
-    pusha
-    mov ax, 0x0f20
-    mov ecx, 2000
-    mov edi, 0xb8000
-    rep stosw
-    popa
-    ret
-
-print32:
-    pusha
-    mov edx, eax
-    mov ah, 0x0f
-
-.loop:
-    mov al, [ebx]
-    cmp al, 0
-    je .done
-    mov [edx], ax
-    add ebx, 1
-    add edx, 2
-    jmp .loop
-
-.done:
-    popa
-    ret
-
-poll_key:
-    in al, 0x64
-    test al, 1
-    jz poll_key
-    in al, 0x60
-    ret
-
-set_caret:
-    pusha
-    mov dx, 0x3d4
-    mov al, 0x0e
-    out dx, al
-
-    mov dx, 0x3d5
-    mov al, bh
-    out dx, al
-
-    mov dx, 0x3d4
-    mov al, 0x0f
-    out dx, al
-
-    mov dx, 0x3d5
-    mov al, bl
-    out dx, al
-
-    popa
-    ret
-
-msg_boot: db "Knuckles", 0
-msg_entry: db "Press any key to load kernel...", 0
-times 1024-($-$$) db 0
+section .bss
+align 16
+stack_bottom:
+    resb 16384 ; 16 KiB stack
+stack_top:
